@@ -124,7 +124,7 @@
                     feed.push({
                         title: el.querySelector("title").innerHTML,
                         description: el.querySelector("description").innerHTML,
-                        url: el.querySelector("link").innerHTML,
+                        url: el.querySelector("enclosure").getAttribute("url"),
                     })
                     html += `
         <article>
