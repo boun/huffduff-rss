@@ -2,119 +2,145 @@
 <html>
 
 <head>
-  <title>huffduff-rss</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="mobile-web-app-capable" content="yes">
-  <script src="/util.js"></script>
-  <style type="text/css" media="screen">
-  body {
-    font-family: sans-serif;
-    text-align: center;
-    max-width: 960px;
-    margin: 10px auto;
-  }
-h1 {font-family: serif;}
-  a.bookmarklet {
-    margin: 1.5em;
-    border: 1px solid blue;
-    padding: .5em;
-    font-style: italic;
-    text-decoration: none;
-    background-color: #acf;
-  }
+    <title>huffduff-rss</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="mobile-web-app-capable" content="yes">
+    <!-- script src="/util.js"></script -->
+    <style type="text/css" media="screen">
+        body {
+            font-family: sans-serif;
+            text-align: center;
+            max-width: 960px;
+            margin: 10px auto;
+        }
 
-  .warning {
-    display: box;
-    background-color: #eee;
-    padding: 1.5em;
-    width: 80%;
-    margin: 1.5em auto;
-    text-align: left;
-  }
+        h1 {
+            font-family: serif;
+        }
 
-  input[type=url] {
-    width: 80%;
-    padding: 12px 20px;
-    margin: 8px 0;
-    display: inline-block;
-    border: 1px solid #ccc;
-  }
+        a.bookmarklet {
+            margin: 1.5em;
+            border: 1px solid blue;
+            padding: .5em;
+            font-style: italic;
+            text-decoration: none;
+            background-color: #acf;
+        }
 
-  input[type=submit] {
-    padding: 12px;
-    margin: 8px 0;
-    display: inline-block;
-    border: 1px solid #ccc;
-  }
+        .warning {
+            display: box;
+            background-color: #eee;
+            padding: 1.5em;
+            width: 80%;
+            margin: 1.5em auto;
+            text-align: left;
+        }
 
-  header,
-  section,
-  form {
-    margin-top: 3em;
-    margin-bottom: 3em;
-  }
+        input[type=url] {
+            width: 80%;
+            padding: 12px 20px;
+            margin: 8px 0;
+            display: inline-block;
+            border: 1px solid #ccc;
+        }
 
-  footer {
-    margin-top: 6em;
-  }
+        input[type=submit] {
+            padding: 12px;
+            margin: 8px 0;
+            display: inline-block;
+            border: 1px solid #ccc;
+        }
 
-  </style>
+        header,
+        section,
+        form {
+            margin-top: 3em;
+            margin-bottom: 3em;
+        }
+
+        footer {
+            margin-top: 6em;
+        }
+
+    </style>
 </head>
 
 <body>
-  <header>
+<header>
     <h1>huffduff-rss</h1>
-    <p>Extracts an episode of a rss feed and sends it to <a href="http://huffduffer.com/">Huffduffer</a>.</p>
-  </header>
-  <section>
+    <p>Extracts an episode of a rss feed and sends it to <a href="https://huffduffer.com/">Huffduffer</a>.</p>
+</header>
+<section>
 
-      <form>
+    <form action="javascript:void(0);">
         <label for="url">Enter a rss URL here:</label>
 
-        <input type="url" name="url" placeholder="URL" />
-        <input type="submit" value="Go" />
-      </form>
+        <input id="url" type="url" name="url" placeholder="URL"/>
+        <input type="submit" value="Go"/>
+    </form>
 
-  </section>
-  <br>
-  <p class="warning"><em>Warning:</em> The UI is is taken from
+</section>
+<br>
+<p class="warning"><em>Warning:</em> The UI is taken from
     <a href="http://github.com/snarfed/huffduff-video">huffduffer-video</a>! It is great!
-  </p>
-  <footer>
+</p>
+<footer>
     <p><small>Source at <a href="https://github.com/boun/huffduff-rss">
-  github.com/snarfed/huffduffer-rss</a>.</small></p>
-  </footer>
+        github.com/boun/huffduffer-rss</a>.</small></p>
+</footer>
 
-  <script>
+<script>
+    var feed = [];
+
     const form = document.querySelectorAll("form")[0];
-    form.children[2].onclick=function(a) { rss(form.children[1].text) }
-    
-    function rss(url) {
+    form.children[2].onclick = function () {
+        rss(form.children[1].value)
+    }
 
-  fetch(url)
-  .then(response => response.text())
-  .then(str => new window.DOMParser().parseFromString(str, "text/xml"))
-  .then(data => {
-    console.log(data);
-    const items = data.querySelectorAll("item");
-    let html = ``;
-    items.forEach(el => {
-      html += `
+    function huffduff(idx) {
+        const item = feed[idx]
+        const url = [
+            'https://huffduffer.com/add?popup=true',
+            `bookmark[url]=${item.url}`,
+            `bookmark[title]=${item.title}`,
+            `bookmark[description]=${item.description}`
+        ].join("&");
+        const encoded = encodeURI(url)
+
+        window.location = encoded;
+        return false;
+    }
+
+    function rss(url) {
+        feed = [];
+
+        fetch(url)
+            .then(response => response.text())
+            .then(str => new window.DOMParser().parseFromString(str, "text/xml"))
+            .then(data => {
+                const items = data.querySelectorAll("item");
+                let html = ``;
+                items.forEach(el => {
+                    feed.push({
+                        title: el.querySelector("title").innerHTML,
+                        description: el.querySelector("description").innerHTML,
+                        url: el.querySelector("link").innerHTML,
+                    })
+                    html += `
         <article>
-          <img src="${el.querySelector("link").innerHTML}/image/large.png" alt="">
           <h2>
-            <a href="${el.querySelector("link").innerHTML}" target="_blank" rel="noopener">
+            <a onclick="javascript:huffduff(${feed.length - 1});" href="#" rel="noopener">
               ${el.querySelector("title").innerHTML}
             </a>
           </h2>
         </article>
       `;
-    });
-    document.body.insertAdjacentHTML("beforeend", html);
-  });
+                });
+                document.body.insertAdjacentHTML("beforeend", html);
+            });
     }
-  </script>
+</script>
 
-  </body>
+</body>
 
 </html>
