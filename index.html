@@ -146,26 +146,25 @@
             await fetch(url)
                 .then(response => response.text())
                 .then(str => {
-                    let ret;
-                    try {
-                        ret = new window.DOMParser().parseFromString(str, "text/xml")
-                    } catch(e) {
-                        ret = new window.DOMParser().parseFromString(str, "text/html")
-                    }
-                    return ret;
+                    if (str.search("<html"))
+                        return new window.DOMParser().parseFromString(str, "text/html")
+                    else
+                        return new window.DOMParser().parseFromString(str, "text/xml")
+
                 }).then(data => {
-                    if (data.activeElement.nodeName === 'rss') {
+                    if (data.querySelector('rss')) {
                         html = rss(data)
-                    } else if (data.activeElement.nodeName === 'html') {
+                    } else if (data.querySelector('html')) {
                         // Better: querySelectorAll but too lazy now
                         let feed = data.querySelector("link[type='application/rss+xml']")
                         if (feed)
-                            html = rss(feed.href)
+                            return parse(feed.href, corsproxyfy)
                     } else {
                         html = "<h2>Not a rss feed</h2>"
                     }
                 });
         } catch (e) {
+            console.log("Failed to fetch " + url)
             html = `<h2>Seems like a cors problem. <a onclick='javascript:parse(\"${url}\", true)' href='#'>Proceed?</a></h2>`
         }
         document.body.insertAdjacentHTML("beforeend", html);
