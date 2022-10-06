@@ -84,13 +84,28 @@
 <p class="warning"><em>Warning:</em> The UI is taken from
     <a href="http://github.com/snarfed/huffduff-video">huffduffer-video</a>! The tool itself as well as the UI are great!
 </p>
+<div id="results">
+
+</div>
 <footer>
     <p><small>Source at <a href="https://github.com/boun/huffduff-rss">
         github.com/boun/huffduffer-rss</a>.</small></p>
+    <div id="debug"></div>
 </footer>
 
 <script>
     var feed = [];
+    const params = new URLSearchParams(document.location.search);
+    const debugging = params.get("debug");
+
+
+    const feed_results = document.querySelector("#results");
+    const debug_div = document.querySelector("#debug");
+
+    function debug(message) {
+        if (debugging)
+            debug_div.insertAdjacentHTML("beforeend", message + "<br/>")
+    }
 
     const form = document.querySelectorAll("form")[0];
     form.children[2].onclick = function () {
@@ -131,21 +146,25 @@
       `;
 
         });
-        return html
+        return html;
     }
 
     async function parse(url, corsproxyfy) {
         feed = [];
 
         let html = `Nothing found`;
+        debug("parse -> url: " + url)
 
         if (corsproxyfy === true)
             url = 'https://corsproxy.io/?' + encodeURIComponent(url)
 
+        debug("parse -> url: " + url)
+
         try {
-            await fetch(url)
+            await fetch(url) // Does not work {redirect: corsproxyfy ? "manual" : "error"})
                 .then(response => response.text())
                 .then(str => {
+                    debug("Got response #chars: " + str.length)
                     if (str.search("<html"))
                         return new window.DOMParser().parseFromString(str, "text/html")
                     else
@@ -164,10 +183,12 @@
                     }
                 });
         } catch (e) {
-            console.log("Failed to fetch " + url)
+            debug("Failed to fetch " + url + " reason " + e);
             html = `<h2>Seems like a cors problem. <a onclick='javascript:parse(\"${url}\", true)' href='#'>Proceed?</a></h2>`
         }
-        document.body.insertAdjacentHTML("beforeend", html);
+
+        feed_results.innerHTML = "";
+        feed_results.insertAdjacentHTML("beforeend", html);
     }
 </script>
 
