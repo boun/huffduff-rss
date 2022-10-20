@@ -118,7 +118,7 @@
             'https://huffduffer.com/add?popup=true',
             `bookmark[url]=${item.url}`,
             `bookmark[title]=${item.title}`,
-            `bookmark[description]=${item.description}`
+            `bookmark[description]=${item.description.substr(0, 666)}`
         ].join("&");
         const encoded = encodeURI(url)
 
