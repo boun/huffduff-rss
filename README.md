@@ -8,5 +8,8 @@ A platform to curate your own podcast stream from Audio across the Internet
 ## Why?
 I tend to stumble about interesting looking podcast episodes while surfing the Internet. However I dont want to subscribe to the podcast immediately. Hence I had to dig out the audio url, copy title and description and insert all that into huffduffer. This project tries to automate this.
 
-## Bug
+## Demo
+See it in action at [https://boun.github.io/huffduff-rss/](https://boun.github.io/huffduff-rss/).
+
+## Bugs
 Yes, it is probably full of it. Send patches.
