@@ -1,197 +1,185 @@
 <!DOCTYPE html>
-<html>
-
+<html lang="en">
 <head>
-    <title>huffduff-rss</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="mobile-web-app-capable" content="yes">
-    <!-- script src="/util.js"></script -->
-    <style type="text/css" media="screen">
-        body {
-            font-family: sans-serif;
-            text-align: center;
-            max-width: 960px;
-            margin: 10px auto;
-        }
+  <meta charset="UTF-8">
+  <title>huffduff-rss</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body {
+      font-family: sans-serif;
+      text-align: center;
+      max-width: 960px;
+      margin: 10px auto;
+    }
 
-        h1 {
-            font-family: serif;
-        }
+    h1 {
+      font-family: serif;
+    }
 
-        a.bookmarklet {
-            margin: 1.5em;
-            border: 1px solid blue;
-            padding: .5em;
-            font-style: italic;
-            text-decoration: none;
-            background-color: #acf;
-        }
+    a.bookmarklet {
+      margin: 1.5em;
+      border: 1px solid blue;
+      padding: 0.5em;
+      font-style: italic;
+      text-decoration: none;
+      background-color: #acf;
+    }
 
-        .warning {
-            display: box;
-            background-color: #eee;
-            padding: 1.5em;
-            width: 80%;
-            margin: 1.5em auto;
-            text-align: left;
-        }
+    .warning {
+      background-color: #eee;
+      padding: 1.5em;
+      width: 80%;
+      margin: 1.5em auto;
+      text-align: left;
+    }
 
-        input[type=url] {
-            width: 80%;
-            padding: 12px 20px;
-            margin: 8px 0;
-            display: inline-block;
-            border: 1px solid #ccc;
-        }
+    input[type=url], input[type=submit] {
+      padding: 12px;
+      margin: 8px 0;
+      border: 1px solid #ccc;
+    }
 
-        input[type=submit] {
-            padding: 12px;
-            margin: 8px 0;
-            display: inline-block;
-            border: 1px solid #ccc;
-        }
+    input[type=url] {
+      width: 80%;
+    }
 
-        header,
-        section,
-        form {
-            margin-top: 3em;
-            margin-bottom: 3em;
-        }
+    header, section, form {
+      margin: 3em 0;
+    }
 
-        footer {
-            margin-top: 6em;
-        }
-
-    </style>
+    footer {
+      margin-top: 6em;
+    }
+  </style>
 </head>
-
 <body>
+
 <header>
-    <h1>huffduff-rss</h1>
-    <p>Extracts an episode of a rss feed and sends it to <a href="https://huffduffer.com/">Huffduffer</a>.</p>
+  <h1>huffduff-rss</h1>
+  <p>Extracts an episode of a RSS feed and sends it to <a href="https://huffduffer.com/">Huffduffer</a>.</p>
 </header>
+
 <section>
-
-    <form action="javascript:void(0);">
-        <label for="url">Enter a rss URL here:</label>
-
-        <input id="url" type="url" name="url" placeholder="URL"/>
-        <input type="submit" value="Go"/>
-    </form>
-
+  <form id="rss-form" action="javascript:void(0);">
+    <label for="url">Enter a RSS URL here:</label><br>
+    <input id="url" type="url" name="url" placeholder="URL" required>
+    <input type="submit" value="Go">
+  </form>
 </section>
-<br>
-<p class="warning"><em>Warning:</em> The UI is taken from
-    <a href="http://github.com/snarfed/huffduff-video">huffduffer-video</a>! The tool itself as well as the UI are great!
-</p>
-<div id="results">
 
-</div>
+<p class="warning">
+  <em>Warning:</em> The UI is taken from
+  <a href="http://github.com/snarfed/huffduff-video">huffduffer-video</a>!
+</p>
+
+<div id="results"></div>
+
 <footer>
-    <p><small>Source at <a href="https://github.com/boun/huffduff-rss">
-        github.com/boun/huffduffer-rss</a>.</small></p>
-    <div id="debug"></div>
+  <p><small>Source at <a href="https://github.com/boun/huffduff-rss">github.com/boun/huffduff-rss</a>.</small></p>
+  <div id="debug"></div>
 </footer>
 
 <script>
-    var feed = [];
-    const params = new URLSearchParams(document.location.search);
-    const debugging = params.get("debug");
+  let feed = [];
+  const params = new URLSearchParams(document.location.search);
+  const debugging = params.get("debug");
 
+  const feedResults = document.querySelector("#results");
+  const debugDiv = document.querySelector("#debug");
 
-    const feed_results = document.querySelector("#results");
-    const debug_div = document.querySelector("#debug");
-
-    function debug(message) {
-        if (debugging)
-            debug_div.insertAdjacentHTML("beforeend", message + "<br/>")
+  function debug(message) {
+    if (debugging) {
+      debugDiv.insertAdjacentHTML("beforeend", `${message}<br/>`);
     }
+  }
 
-    const form = document.querySelectorAll("form")[0];
-    form.children[2].onclick = function () {
-        parse(form.children[1].value)
-    }
+  const form = document.querySelector("#rss-form");
+  form.addEventListener("submit", () => {
+    const input = form.querySelector("#url");
+    parse(input.value.trim());
+  });
 
-    function huffduff(idx) {
-        const item = feed[idx]
-        const url = [
-            'https://huffduffer.com/add?popup=true',
-            `bookmark[url]=${item.url}`,
-            `bookmark[title]=${item.title}`,
-            `bookmark[description]=${item.description.substr(0, 666)}`
-        ].join("&");
-        const encoded = encodeURI(url)
+  function huffduff(idx) {
+    const item = feed[idx];
+    const url = new URL("https://huffduffer.com/add?popup=true");
+    url.searchParams.set("bookmark[url]", item.url);
+    url.searchParams.set("bookmark[title]", item.title);
+    url.searchParams.set("bookmark[description]", item.description.substring(0, 666));
 
-        window.location = encoded;
-        return false;
-    }
+    window.location.href = url.toString();
+    return false;
+  }
 
-    function rss(data) {
-        const items = data.querySelectorAll("item");
-        let html = ``;
-        items.forEach(el => {
-            feed.push({
-                title: el.querySelector("title").innerHTML,
-                description: el.querySelector("description").innerHTML,
-                url: el.querySelector("enclosure").getAttribute("url"),
-            })
-            html += `
+  function rss(data) {
+    const items = data.querySelectorAll("item");
+    let html = "";
+
+    items.forEach(el => {
+      const title = el.querySelector("title")?.textContent || "Untitled";
+      const description = el.querySelector("description")?.textContent || "";
+      const enclosure = el.querySelector("enclosure");
+      const mediaUrl = enclosure?.getAttribute("url");
+
+      if (!mediaUrl) return;
+
+      feed.push({ title, description, url: mediaUrl });
+
+      html += `
         <article>
           <h2>
-            <a onclick="javascript:huffduff(${feed.length - 1});" href="#" rel="noopener">
-              ${el.querySelector("title").innerHTML}
+            <a href="#" onclick="huffduff(${feed.length - 1}); return false;" rel="noopener">
+              ${title}
             </a>
           </h2>
         </article>
       `;
+    });
 
-        });
-        return html;
+    return html || "<h2>No valid media items found in feed.</h2>";
+  }
+
+  async function parse(url, useProxy = false) {
+    feed = [];
+    let html = "Nothing found";
+
+    if (!url) return;
+
+    debug(`parse → url: ${url}`);
+    if (useProxy) {
+      url = "https://corsproxy.io/?url=" + encodeURIComponent(url);
+      debug(`parse → using proxy: ${url}`);
     }
 
-    async function parse(url, corsproxyfy) {
-        feed = [];
+    try {
+      const response = await fetch(url);
+      const text = await response.text();
 
-        let html = `Nothing found`;
-        debug("parse -> url: " + url)
+      debug(`Got response (#chars: ${text.length})`);
 
-        if (corsproxyfy === true)
-            url = 'https://corsproxy.io/?url=' + encodeURIComponent(url)
+      const isHTML = text.includes("<html");
+      const parser = new DOMParser();
+      const data = parser.parseFromString(text, isHTML ? "text/html" : "text/xml");
 
-        debug("parse -> url: " + url)
-
-        try {
-            await fetch(url) // Does not work {redirect: corsproxyfy ? "manual" : "error"})
-                .then(response => response.text())
-                .then(str => {
-                    debug("Got response #chars: " + str.length)
-                    if (str.search("<html"))
-                        return new window.DOMParser().parseFromString(str, "text/html")
-                    else
-                        return new window.DOMParser().parseFromString(str, "text/xml")
-
-                }).then(data => {
-                    if (data.querySelector('rss')) {
-                        html = rss(data)
-                    } else if (data.querySelector('html')) {
-                        // Better: querySelectorAll but too lazy now
-                        let feed = data.querySelector("link[type='application/rss+xml']")
-                        if (feed)
-                            return parse(feed.href, corsproxyfy)
-                    } else {
-                        html = "<h2>Not a rss feed</h2>"
-                    }
-                });
-        } catch (e) {
-            debug("Failed to fetch " + url + " reason " + e);
-            html = `<h2>Seems like a cors problem. <a onclick='javascript:parse(\"${url}\", true)' href='#'>Proceed?</a></h2>`
+      if (data.querySelector("rss")) {
+        html = rss(data);
+      } else if (data.querySelector("html")) {
+        const feedLink = data.querySelector("link[type='application/rss+xml']");
+        if (feedLink && feedLink.href) {
+          return parse(feedLink.href, useProxy);
+        } else {
+          html = "<h2>No RSS feed link found on page.</h2>";
         }
-
-        feed_results.innerHTML = "";
-        feed_results.insertAdjacentHTML("beforeend", html);
+      } else {
+        html = "<h2>Not a recognizable RSS feed.</h2>";
+      }
+    } catch (e) {
+      debug(`Fetch failed: ${e}`);
+      html = `<h2>Fetch error or CORS issue. <a href="#" onclick='parse("${url}", true); return false;'>Try using proxy?</a></h2>`;
     }
+
+    feedResults.innerHTML = html;
+  }
 </script>
 
 </body>
-
 </html>
