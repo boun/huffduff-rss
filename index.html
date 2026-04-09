@@ -138,6 +138,171 @@
     return html || "<h2>No valid media items found in feed.</h2>";
   }
 
+  // ARD Sounds / ARD Audiothek Support
+  function isArdSoundsUrl(url) {
+    return (url.includes('ardsounds.de') || url.includes('ardaudiothek.de'));
+  }
+
+  function isArdEpisode(url) {
+    return isArdSoundsUrl(url) && url.includes('/episode/');
+  }
+
+  function extractEpisodeUrn(url) {
+    const match = url.match(/urn:ard:episode:[a-f0-9]+/);
+    return match ? match[0] : null;
+  }
+
+  async function queryArdGraphQL(query) {
+    const response = await fetch('https://api.ardaudiothek.de/graphql', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query })
+    });
+
+    if (!response.ok) throw new Error(`GraphQL request failed: ${response.statusText}`);
+    
+    const data = await response.json();
+    if (data.errors) throw new Error(data.errors[0].message);
+    
+    return data.data;
+  }
+
+  async function loadArdEpisode(episodeUrn) {
+    const query = `{
+      episode(id: "${episodeUrn}") {
+        title
+        synopsis
+        sharingUrl
+        publishDate
+        duration
+        audios {
+          url
+          downloadUrl
+        }
+        image {
+          url1X1
+        }
+        programSet {
+          id
+          title
+          synopsis
+        }
+      }
+    }`;
+
+    const data = await queryArdGraphQL(query);
+    const episode = data.episode;
+
+    if (!episode.audios?.[0]?.url) {
+      throw new Error('No audio URL found for episode');
+    }
+
+    return {
+      episode: {
+        title: episode.title,
+        description: episode.synopsis || '',
+        url: episode.audios[0].url,
+        sourceUrl: episode.sharingUrl
+      },
+      show: {
+        id: episode.programSet.id,
+        title: episode.programSet.title
+      }
+    };
+  }
+
+  async function loadArdShowEpisodes(showId) {
+    const query = `{
+      programSet(id: ${showId}) {
+        title
+        synopsis
+        items(orderBy: PUBLISH_DATE_DESC, filter: {isPublished: {equalTo: true}}, first: 500) {
+          nodes {
+            title
+            synopsis
+            sharingUrl
+            audios {
+              url
+            }
+          }
+        }
+      }
+    }`;
+
+    const data = await queryArdGraphQL(query);
+    const programSet = data.programSet;
+
+    const episodes = programSet.items.nodes
+      .filter(ep => ep.audios?.[0]?.url)
+      .map(ep => ({
+        title: ep.title,
+        description: ep.synopsis || '',
+        url: ep.audios[0].url
+      }));
+
+    return {
+      show: {
+        title: programSet.title,
+        synopsis: programSet.synopsis || ''
+      },
+      episodes
+    };
+  }
+
+  function displayArdEpisode(episodeData) {
+    const { episode, show } = episodeData;
+    feed = [episode];
+
+    let html = `
+      <article>
+        <h2>
+          <a href="#" onclick="huffduff(0); return false;" rel="noopener">
+            ${episode.title}
+          </a>
+        </h2>
+      </article>
+      <p>
+        <a href="#" onclick="loadAllShowEpisodes(${show.id}); return false;">
+          Load all episodes from: ${show.title}
+        </a>
+      </p>
+    `;
+
+    feedResults.innerHTML = html;
+  }
+
+  function displayArdShowEpisodes(showData) {
+    const { show, episodes } = showData;
+    feed = [];
+    let html = '';
+
+    episodes.forEach(ep => {
+      feed.push(ep);
+      html += `
+        <article>
+          <h2>
+            <a href="#" onclick="huffduff(${feed.length - 1}); return false;" rel="noopener">
+              ${ep.title}
+            </a>
+          </h2>
+        </article>
+      `;
+    });
+
+    feedResults.innerHTML = html || "<h2>No episodes found.</h2>";
+  }
+
+  async function loadAllShowEpisodes(showId) {
+    try {
+      debug(`Loading all episodes for show ID: ${showId}`);
+      const showData = await loadArdShowEpisodes(showId);
+      displayArdShowEpisodes(showData);
+    } catch (e) {
+      debug(`Error: ${e.message}`);
+      feedResults.innerHTML = `<h2>Error loading episodes: ${e.message}</h2>`;
+    }
+  }
+
   async function parse(url, useProxy = false) {
     feed = [];
     let html = "Nothing found";
@@ -145,6 +310,26 @@
     if (!url) return;
 
     debug(`parse → url: ${url}`);
+
+    // Handle ARD Sounds episode URLs
+    if (isArdEpisode(url)) {
+      try {
+        debug(`Detected ARD episode URL`);
+        const episodeUrn = extractEpisodeUrn(url);
+        if (!episodeUrn) throw new Error('Could not extract episode URN');
+        
+        const episodeData = await loadArdEpisode(episodeUrn);
+        displayArdEpisode(episodeData);
+        return;
+      } catch (e) {
+        debug(`ARD error: ${e.message}`);
+        html = `<h2>ARD episode parsing failed: ${e.message}</h2><p><a href="#" onclick='parse("${url}", true); return false;'>Try with proxy?</a></p>`;
+        feedResults.innerHTML = html;
+        return;
+      }
+    }
+
+    // Handle regular RSS feeds
     if (useProxy) {
       url = "https://corsproxy.io/?url=" + encodeURIComponent(url);
       debug(`parse → using proxy: ${url}`);
