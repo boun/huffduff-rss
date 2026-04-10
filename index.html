@@ -324,7 +324,7 @@
     const showLink = show.url
       ? `
         <p>
-          <a href="#" onclick="parse(${JSON.stringify(show.url)}); return false;">
+          <a href="#" onclick='parse(${JSON.stringify(show.url)}); return false;'>
             Ganzen Feed anzeigen: ${show.title}
           </a>
         </p>
