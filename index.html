@@ -43,6 +43,36 @@
       width: 80%;
     }
 
+    input[type=file] {
+      display: block;
+      margin: 12px auto 0;
+    }
+
+    .drop-zone {
+      width: 80%;
+      margin: 16px auto 0;
+      padding: 1.5em;
+      border: 2px dashed #88a;
+      background: #f8f9ff;
+      color: #444;
+      text-align: center;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background-color 0.15s ease, border-color 0.15s ease;
+      user-select: none;
+    }
+
+    .drop-zone.dragover {
+      background: #eef4ff;
+      border-color: #446;
+    }
+
+    .drop-zone small {
+      display: block;
+      margin-top: 0.5em;
+      color: #666;
+    }
+
     header, section, form {
       margin: 3em 0;
     }
@@ -65,6 +95,11 @@
     <input id="url" type="url" name="url" placeholder="URL" required>
     <input type="submit" value="Go">
   </form>
+  <div id="drop-zone" class="drop-zone" role="button" tabindex="0" aria-label="Feed datei hochladen oder hierher ziehen">
+    Oder eine Feed-Datei hierher ziehen
+    <small>XML, RSS oder Atom lokal laden und ohne CORS-Probleme anzeigen</small>
+    <input id="file-input" type="file" accept=".xml,.rss,.atom,.rdf,.feed,text/xml,application/xml,application/rss+xml,application/atom+xml">
+  </div>
 </section>
 
 <p class="warning">
@@ -86,6 +121,8 @@
 
   const feedResults = document.querySelector("#results");
   const debugDiv = document.querySelector("#debug");
+  const dropZone = document.querySelector("#drop-zone");
+  const fileInput = document.querySelector("#file-input");
 
   function debug(message) {
     if (debugging) {
@@ -97,6 +134,71 @@
   form.addEventListener("submit", () => {
     const input = form.querySelector("#url");
     parse(input.value.trim());
+  });
+
+  async function parseFeedText(text, sourceLabel = "Lokale Datei") {
+    feed = [];
+
+    const isHTML = text.includes("<html");
+    const parser = new DOMParser();
+    const data = parser.parseFromString(text, isHTML ? "text/html" : "text/xml");
+    let html = "";
+
+    if (data.querySelector("rss")) {
+      html = rss(data);
+    } else if (data.querySelector("feed")) {
+      html = atom(data);
+    } else if (data.querySelector("html")) {
+      const feedLink = data.querySelector("link[type='application/rss+xml'], link[type='application/atom+xml']");
+      if (feedLink && feedLink.href) {
+        return parse(feedLink.href);
+      } else {
+        html = `<h2>${sourceLabel}: Kein Feed-Link gefunden.</h2>`;
+      }
+    } else {
+      html = `<h2>${sourceLabel}: Kein erkennbarer RSS/Atom-Feed.</h2>`;
+    }
+
+    feedResults.innerHTML = html;
+  }
+
+  async function parseFile(file) {
+    if (!file) return;
+
+    debug(`parseFile → name: ${file.name}, type: ${file.type || "unknown"}`);
+
+    try {
+      const text = await file.text();
+      await parseFeedText(text, file.name);
+    } catch (e) {
+      debug(`File parse failed: ${e}`);
+      feedResults.innerHTML = `<h2>Fehler beim Lesen der Datei: ${e.message}</h2>`;
+    }
+  }
+
+  fileInput.addEventListener("change", () => {
+    parseFile(fileInput.files?.[0]);
+  });
+
+  dropZone.addEventListener("click", () => fileInput.click());
+  dropZone.addEventListener("keydown", event => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      fileInput.click();
+    }
+  });
+  dropZone.addEventListener("dragover", event => {
+    event.preventDefault();
+    dropZone.classList.add("dragover");
+  });
+  dropZone.addEventListener("dragleave", () => {
+    dropZone.classList.remove("dragover");
+  });
+  dropZone.addEventListener("drop", event => {
+    event.preventDefault();
+    dropZone.classList.remove("dragover");
+    const file = event.dataTransfer?.files?.[0];
+    parseFile(file);
   });
 
   function huffduff(idx) {
@@ -119,6 +221,35 @@
       const description = el.querySelector("description")?.textContent || "";
       const enclosure = el.querySelector("enclosure");
       const mediaUrl = enclosure?.getAttribute("url");
+
+      if (!mediaUrl) return;
+
+      feed.push({ title, description, url: mediaUrl });
+
+      html += `
+        <article>
+          <h2>
+            <a href="#" onclick="huffduff(${feed.length - 1}); return false;" rel="noopener">
+              ${title}
+            </a>
+          </h2>
+        </article>
+      `;
+    });
+
+    return html || "<h2>No valid media items found in feed.</h2>";
+  }
+
+  function atom(data) {
+    const entries = data.querySelectorAll("entry");
+    let html = "";
+
+    entries.forEach(el => {
+      const title = el.querySelector("title")?.textContent || "Untitled";
+      const description = el.querySelector("summary")?.textContent || el.querySelector("content")?.textContent || "";
+      const linkEl = el.querySelector("link[href]");
+      const enclosure = el.querySelector("link[rel='enclosure'][href]");
+      const mediaUrl = enclosure?.getAttribute("href") || linkEl?.getAttribute("href");
 
       if (!mediaUrl) return;
 
@@ -430,7 +561,7 @@
           html = "<h2>No RSS feed link found on page.</h2>";
         }
       } else {
-        html = "<h2>Not a recognizable RSS feed.</h2>";
+        html = "<h2>Not a recognizable RSS or Atom feed.</h2>";
       }
     } catch (e) {
       debug(`Fetch failed: ${e}`);
